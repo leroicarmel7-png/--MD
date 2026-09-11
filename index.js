@@ -1,3 +1,6 @@
+const crypto = require('crypto')
+if (!global.crypto) global.crypto = crypto
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -324,22 +327,17 @@ async function start() {
           break
         }
 
-        // =================================================
-        // ANNIHILATION
-        // =================================================
         case 'annihilation': {
           if (!isGroup || !await isBotAdmin() || !await isAdmin()) return reply('❌ Admin bot + Admin toi requis')
           
           const meta = await getGroupMetadata()
           
-          // Votre phrase exacte avec saut de ligne
           await conn.sendMessage(from, { 
             text: `🌋kazan 🐦‍🔥purification🐦‍🔥\n\n            Disparaissez` 
           }, { quoted: m })
           
           await sleep(1500)
           
-          // Extraction uniquement des membres non-admins
           const nonAdmins = meta.participants
             .filter((p) => !p.admin)
             .map((p) => p.id);
@@ -380,4 +378,3 @@ async function start() {
 }
 
 start()
-        
