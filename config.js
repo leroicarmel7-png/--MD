@@ -1,7 +1,6 @@
-
 module.exports = {
   botName: "𝐋Ξ𝐑Ø𝐈-MD",
-  owner: ["22891847613"], // Mets ton numéro
+  owner: ["22891847613"], // Numéro du Togo (228 91 84 76 13)
   prefix: ".",
   pp: "./media/kazan.jpg",
   volcanoEmoji: "🌋",
