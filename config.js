@@ -1,7 +1,7 @@
 
 module.exports = {
   botName: "𝐋Ξ𝐑Ø𝐈-MD",
-  owner: ["225XXXXXXXX"], // Mets ton numéro
+  owner: ["22891847613"], // Mets ton numéro
   prefix: ".",
   pp: "./media/kazan.jpg",
   volcanoEmoji: "🌋",
