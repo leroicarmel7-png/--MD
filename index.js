@@ -1,11 +1,12 @@
 const crypto = require('crypto')
-if (!global.crypto) global.crypto = crypto
+if (!global.crypto) global.crypto = crypto.webcrypto
 
 const {
   default: makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason
+  DisconnectReason,
+  Browsers
 } = require('@whiskeysockets/baileys')
 
 const P = require('pino')
@@ -17,15 +18,9 @@ const DATA_DIR = './database'
 const SESSION_DIR = './session'
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true })
 
 const OWNER_NUMBER = String(config.owner?.[0] || '22891847613').replace(/[^0-9]/g, '')
-
-let prefix = config.prefix || '.'
-let sudo = []
-let selfMode = true
-let antilink = {}
-let welcome = {}
-let antimention = {}
 
 const files = {
   sudo: path.join(DATA_DIR, 'sudo.json'),
@@ -43,30 +38,34 @@ function loadJSON(file, fallback) {
     return JSON.parse(fs.readFileSync(file, 'utf8'))
   } catch (e) { return fallback }
 }
+
 function saveJSON(file, data) {
   try { fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8') } catch {}
 }
 
-sudo = loadJSON(files.sudo, [])
+let sudo = loadJSON(files.sudo, [])
 const settings = loadJSON(files.settings, { antilink: {}, welcome: {}, antimention: {} })
-antilink = settings.antilink || {}
-welcome = settings.welcome || {}
-antimention = settings.antimention || {}
-const savedPrefix = loadJSON(files.prefix, { prefix: config.prefix || '.' })
-prefix = savedPrefix.prefix || config.prefix || '.'
-const savedSelf = loadJSON(files.self, { selfMode: true })
-selfMode = savedSelf.selfMode !== false
+let antilink = settings.antilink || {}
+let welcome = settings.welcome || {}
+let antimention = settings.antimention || {}
 
-function cleanNumber(n){ return String(n||'').replace(/[^0-9]/g,'') }
-function jidNumber(jid){ return cleanNumber(String(jid||'').split('@')[0].split(':')[0]) }
-function isOwnerNumber(num){ return jidNumber(num) === OWNER_NUMBER }
-function isSudo(jid){ const number = jidNumber(jid); if(!number) return false; return sudo.some(s=>jidNumber(s)===number) }
-function isOwnerOrSudo(jid){ return isOwnerNumber(jid) || isSudo(jid) }
-function saveSettings(){ saveJSON(files.settings, { antilink, welcome, antimention }) }
-function saveSudo(){ saveJSON(files.sudo, sudo) }
-function savePrefix(){ saveJSON(files.prefix, { prefix }) }
-function saveSelf(){ saveJSON(files.self, { selfMode }) }
-const sleep = ms => new Promise(r=>setTimeout(r, ms))
+const savedPrefix = loadJSON(files.prefix, { prefix: config.prefix || '.' })
+let prefix = savedPrefix.prefix || config.prefix || '.'
+
+const savedSelf = loadJSON(files.self, { selfMode: true })
+let selfMode = savedSelf.selfMode !== false
+
+function cleanNumber(n) { return String(n || '').replace(/[^0-9]/g, '') }
+function jidNumber(jid) { return cleanNumber(String(jid || '').split('@')[0].split(':')[0]) }
+function isOwnerNumber(num) { return jidNumber(num) === OWNER_NUMBER }
+function isSudo(jid) { const number = jidNumber(jid); if (!number) return false; return sudo.some(s => jidNumber(s) === number) }
+function isOwnerOrSudo(jid) { return isOwnerNumber(jid) || isSudo(jid) }
+
+function saveSettings() { saveJSON(files.settings, { antilink, welcome, antimention }) }
+function saveSudo() { saveJSON(files.sudo, sudo) }
+function savePrefix() { saveJSON(files.prefix, { prefix }) }
+function saveSelf() { saveJSON(files.self, { selfMode }) }
+const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
@@ -76,7 +75,7 @@ async function start() {
     version,
     auth: state,
     logger: P({ level: 'silent' }),
-    browser: ['KAZAN-MD', 'Chrome', '1.0'],
+    browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: true,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
@@ -92,7 +91,7 @@ async function start() {
         console.log('\n╔═════════════════════════════════════╗')
         console.log('║      CODE PAIRING : ' + code + '       ║')
         console.log('╚═════════════════════════════════════╝\n')
-      } catch (e) { 
+      } catch (e) {
         console.log('Erreur pairing :', e.message)
       }
     }, 3000)
@@ -111,7 +110,11 @@ async function start() {
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       console.log('Connexion fermée (Code:', statusCode, '). Relance...')
-      setTimeout(() => start(), 3000)
+      if (statusCode !== DisconnectReason.loggedOut) {
+        setTimeout(() => start(), 3000)
+      } else {
+        console.log('❌ Déconnecté. Supprime le dossier session pour refaire le pairing.')
+      }
     }
   })
 
@@ -128,26 +131,40 @@ async function start() {
   conn.ev.on('messages.upsert', async ({ messages }) => {
     try {
       const m = messages[0]
-      if (!m || !m.message || m.key.fromMe) return
+      if (!m || !m.message) return
+
       const from = m.key.remoteJid
       if (!from) return
+
       const isGroup = from.endsWith('@g.us')
       const body = m.message.conversation || m.message.extendedTextMessage?.text || m.message.imageMessage?.caption || m.message.videoMessage?.caption || m.message.documentMessage?.caption || ''
       if (!body) return
-      const sender = m.key.participant || from
-      const senderNumber = jidNumber(sender)
-      const isOwner = isOwnerNumber(sender)
-      const isOwnerSudo = isOwnerOrSudo(sender)
 
-      if (isGroup && antilink[from] && (body.includes('https://') || body.includes('http://') || body.includes('chat.whatsapp.com'))) {
-        const meta = await conn.groupMetadata(from)
-        const participant = meta.participants.find(p => jidNumber(p.id) === senderNumber)
-        const isAdminCheck = !!participant?.admin
-        if (!isAdminCheck && !isOwnerSudo) {
-          await conn.sendMessage(from, { text: `🛡️ Antilink\n@${senderNumber} a envoyé un lien.`, mentions: [sender] }, { quoted: m })
-          try { await conn.groupParticipantsUpdate(from, [sender], 'remove') } catch {}
-          return
-        }
+      // FIX: sur un self-bot, les messages envoyés par le owner arrivent avec fromMe = true
+      // (même JID que le bot). On ne les ignore plus, on détermine juste correctement "sender".
+      const sender = m.key.fromMe
+        ? (conn.user?.id || (OWNER_NUMBER + '@s.whatsapp.net'))
+        : (m.key.participant || from)
+
+      const senderNumber = jidNumber(sender)
+      const isOwner = m.key.fromMe || isOwnerNumber(sender)
+      const isOwnerSudo = isOwner || isSudo(sender)
+
+      /*
+       * GESTION DE L'ANTILINK
+       * (on ignore l'antilink sur les messages du bot lui-même pour éviter tout effet de bord)
+       */
+      if (!m.key.fromMe && isGroup && antilink[from] && (body.includes('https://') || body.includes('http://') || body.includes('chat.whatsapp.com'))) {
+        try {
+          const meta = await conn.groupMetadata(from)
+          const participant = meta.participants.find(p => jidNumber(p.id) === senderNumber)
+          const isAdminCheck = !!participant?.admin
+          if (!isAdminCheck && !isOwnerSudo) {
+            await conn.sendMessage(from, { text: `🛡️ Antilink\n@${senderNumber} a envoyé un lien.`, mentions: [sender] }, { quoted: m })
+            await conn.groupParticipantsUpdate(from, [sender], 'remove')
+            return
+          }
+        } catch {}
       }
 
       if (!body.startsWith(prefix)) return
@@ -155,9 +172,20 @@ async function start() {
       const command = args.shift()?.toLowerCase()
       const q = args.join(' ')
       if (!command) return
+
       if (selfMode && !isOwnerSudo) return
 
-      const getGroupMetadata = async () => await conn.groupMetadata(from)
+      /*
+       * DONNÉES DU GROUPE
+       */
+      let cachedGroupMeta = null
+      const getGroupMetadata = async () => {
+        if (!cachedGroupMeta && isGroup) {
+          cachedGroupMeta = await conn.groupMetadata(from)
+        }
+        return cachedGroupMeta
+      }
+
       const isBotAdmin = async () => {
         if (!isGroup) return false
         const meta = await getGroupMetadata()
@@ -165,14 +193,19 @@ async function start() {
         const bot = meta.participants.find(p => jidNumber(p.id) === botNumber)
         return !!bot?.admin
       }
+
       const isAdmin = async () => {
         if (!isGroup) return false
         const meta = await getGroupMetadata()
         const participant = meta.participants.find(p => jidNumber(p.id) === senderNumber)
         return !!participant?.admin
       }
+
       const reply = text => conn.sendMessage(from, { text }, { quoted: m })
 
+      /*
+       * COMMANDES SWITCH
+       */
       switch (command) {
         case 'menu': case 'alive': {
           const menu = `╔═══━━━────━━━═══╗\n     🌋 KAZAN-MD 🌋\n       👑 FULL 31 👑\n╚═══━━━────━━━═══╝\n\n╭─ OWNER ╮\n│ • ${prefix}hidetag\n│ • ${prefix}count\n│ • ${prefix}gpid\n│ • ${prefix}sudo\n│ • ${prefix}delsudo\n│ • ${prefix}prefix\n│ • ${prefix}self\n│ • ${prefix}delself\n╰──────────────\n\n╭─ GROUP ╮\n│ • ${prefix}tag\n│ • ${prefix}tagall\n│ • ${prefix}tagadmin\n│ • ${prefix}gstatus\n│ • ${prefix}mute\n│ • ${prefix}unmute\n│ • ${prefix}kick\n│ • ${prefix}promote\n│ • ${prefix}demote\n│ • ${prefix}online\n│ • ${prefix}left\n│ • ${prefix}quiz\n╰──────────────\n\n╭─ SECURITY ╮\n│ • ${prefix}antilink\n│ • ${prefix}antimention\n│ • ${prefix}welcome\n╰──────────────\n\n╭─ KAZAN ╮\n│ • ${prefix}annihilation\n│ • ${prefix}raid1\n│ • ${prefix}raid2\n│ • ${prefix}raid3\n│ • ${prefix}raid4\n╰──────────────\n\n╭─ OTHER ╮\n│ • ${prefix}ping\n╰──────────────\n`
@@ -185,7 +218,6 @@ async function start() {
         }
         case 'ping': {
           const startTime = Date.now()
-          await reply('🌋 Pong!')
           await reply(`⚡ Latence : ${Date.now() - startTime}ms`)
           break
         }
@@ -316,19 +348,19 @@ async function start() {
         }
         case 'antilink': {
           if (!isGroup || !await isAdmin()) return
-          if (!q || q === 'on') { antilink[from]=true; saveSettings(); await reply('🛡️ Antilink ON') }
+          if (!q || q === 'on') { antilink[from] = true; saveSettings(); await reply('🛡️ Antilink ON') }
           else { delete antilink[from]; saveSettings(); await reply('🛡️ Antilink OFF') }
           break
         }
         case 'welcome': {
           if (!isGroup || !await isAdmin()) return
-          if (!q || q === 'on') { welcome[from]=true; saveSettings(); await reply('🌹 Welcome ON') }
+          if (!q || q === 'on') { welcome[from] = true; saveSettings(); await reply('🌹 Welcome ON') }
           else { delete welcome[from]; saveSettings(); await reply('🌹 Welcome OFF') }
           break
         }
         case 'antimention': {
           if (!isGroup || !await isAdmin()) return
-          if (!q || q === 'on') { antimention[from]=true; saveSettings(); await reply('🛡️ Antimention ON') }
+          if (!q || q === 'on') { antimention[from] = true; saveSettings(); await reply('🛡️ Antimention ON') }
           else { delete antimention[from]; saveSettings(); await reply('🛡️ Antimention OFF') }
           break
         }
@@ -357,7 +389,7 @@ async function start() {
             await conn.groupUpdateDescription(from, data.desc)
             if (data.pp) await conn.updateProfilePicture(from, { url: data.pp })
             await reply(`🌋 ${command.toUpperCase()} exécuté - KAZAN A AVANCÉ 👑`)
-          } catch(e){ await reply('Erreur RAID: '+e.message) }
+          } catch(e) { await reply('Erreur RAID: ' + e.message) }
           break
         }
       }
@@ -366,4 +398,3 @@ async function start() {
 }
 
 start()
-            
