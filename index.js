@@ -20,6 +20,17 @@ const SESSION_DIR = './session'
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true })
 
+// Petit serveur HTTP pour satisfaire le health check de la plateforme d'hébergement
+// (sans ça, certaines plateformes considèrent le conteneur "non démarré" et le redémarrent
+// en boucle, tuant la session WhatsApp juste après l'affichage du code de pairing)
+const http = require('http')
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' })
+  res.end('KAZAN-MD is running')
+}).listen(process.env.PORT || 3000, () => {
+  console.log('🌋 Serveur HTTP démarré sur le port ' + (process.env.PORT || 3000))
+})
+
 const OWNER_NUMBER = String(config.owner?.[0] || '22891847613').replace(/[^0-9]/g, '')
 
 const files = {
@@ -398,3 +409,4 @@ async function start() {
 }
 
 start()
+        
