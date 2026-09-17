@@ -3,7 +3,7 @@ module.exports = {
   ownerName: "𝐑Ø𝐈༽ †🌹ᴼᴿᴵᴳᴵᴺᴬᴸ𓍯⃝𓊈𝐀𝐏𝐓𓊉",
   owner: ["22891847613"],
   prefix: ".",
-  pp: "./media/apotheon.jpg",
+  pp: "https://files.catbox.moe/td6x7m.jpg",
   dominationSuffix: `༺𓂀༻「𝐏𝐔𝐑𝐈𝐅𝐈𝐂𝐀𝐓𝐈𝐎𝐍」༺𓂀༻
 𝐁𝐘 𝑨𝑷𝑶𝑻𝑯𝑬𝑶𝑵 𝑺𝑶𝑽𝑬𝑹𝑬𝑰𝑮𝑵
 ༺🧭༻ ───── ༺🌹༻`,
