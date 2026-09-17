@@ -3,6 +3,9 @@
   "version": "2.0.0",
   "description": "LEROI-MD x APOTHEON SOVEREIGN - Bot WhatsApp",
   "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "start": "node index.js"
   },
