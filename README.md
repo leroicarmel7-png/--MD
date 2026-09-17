@@ -1,22 +1,28 @@
-# 🌋 KAZAN-MD-ROI-ORIGINAL
+🪐 LEROI-MD-APOTHEON
 
-Un bot WhatsApp puissant, rapide et personnalisable basé sur **Baileys**.
+🪐 LΞRØI-MD × APOTHEON — Bot WhatsApp rapide, puissant et personnalisable basé sur Baileys.
 
----
+🪐 Fonctionnalités
 
-## 📋 Fonctionnalités Principales
+- 👑 Owner & Sudo
+- 👥 Gestion de groupe
+- 🛡️ Antilink & Antimention
+- 👋 Welcome
+- 👢 Kick / Promote / Demote
+- 📢 Tag / Tagall
+- 🎨 Stickers & conversion image
+- 🪐 Domination
+- 🪐 Extinction / Annihilation
+- 🏓 Ping & Quiz
 
-* **👑 Contrôle Owner & Sudo :** Gestion du mode privé/public, modification du préfixe, ajout de sudos.
-* **👥 Gestion de Groupe :** Hidetag, Tagall, Tagadmin, Mute/Unmute, Kick, Promote, Demote.
-* **🛡️ Sécurité :** Antilink, Antimention, Système de Welcome personnalisé.
-* **🌋 Mode Annihilation & Raids :** Purification rapide (expulsion des membres non-admins) et modification thématique du groupe.
+🚀 Installation
 
----
+git clone https://github.com/ton-utilisateur/leroi-md-apotheon.git
+cd leroi-md-apotheon
+npm install
+npm start
 
-## 🚀 Installation Locale
+🪐 LEROI-MD-APOTHEON
 
-1. **Cloner le projet :**
-   ```bash
-   git clone [https://github.com/ton-utilisateur/KAZAN-MD-ROI-ORIGINAL.git](https://github.com/ton-utilisateur/KAZAN-MD-ROI-ORIGINAL.git)
-   cd KAZAN-MD-ROI-ORIGINAL
-   
+«🪐 LΞRØI-MD × APOTHEON
+Sovereign WhatsApp Bot»
