@@ -1,7 +1,7 @@
 module.exports = {
   botName: "𝐋Ξ𝐑Ø𝐈-MD",
   ownerName: "𝐑Ø𝐈༽ †🌹ᴼᴿᴵᴳᴵᴺᴬᴸ𓍯⃝𓊈𝐀𝐏𝐓𓊉",
-  owner: ["TonNumero"],
+  owner: ["22891847613"],
   prefix: ".",
   pp: "./media/apotheon.jpg",
   dominationSuffix: `༺𓂀༻「𝐏𝐔𝐑𝐈𝐅𝐈𝐂𝐀𝐓𝐈𝐎𝐍」༺𓂀༻
