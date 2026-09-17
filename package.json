@@ -10,7 +10,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
+    "@whiskeysockets/baileys": "latest",
     "pino": "^8.16.0",
     "node-fetch": "^2.6.9",
     "express": "^4.18.2",
