@@ -9,22 +9,40 @@ const {
 const P = require('pino')
 const fs = require('fs')
 const path = require('path')
-const fetch = require('node-fetch')
 const express = require('express')
 const config = require('./config')
 
+// --- ENV VARIABLES (DOIT ETRE AVANT EXPRESS) ---
+const BOT_NAME = process.env.BOT_NAME || config.botName || 'LEROI-MD-APOTHEON'
+const OWNER_NAME = process.env.OWNER_NAME || config.ownerName || 'LΞRØI'
+const OWNER_NUMBER = String(process.env.OWNER_NUMBER || config.owner?.[0] || '22891847613').replace(/[^0-9]/g, '')
+const PAIRING_NUMBER = String(process.env.PAIRING_NUMBER || process.env.OWNER_NUMBER || OWNER_NUMBER).replace(/[^0-9]/g, '')
+const PAIRING_ENABLED = (process.env.PAIRING || 'true').toLowerCase() === 'true'
+const BOT_IMAGE = process.env.BOT_IMAGE || config.botImage || config.domination.pp
+let prefix = process.env.PREFIX || config.prefix || '.'
+const PORT = process.env.PORT || 3000
+
 // --- SERVEUR EXPRESS POUR RENDER ---
 const app = express()
-const PORT = process.env.PORT || 3000
-app.get('/', (req, res) => res.send('👑 LEROI-MD x APOTHEON IS ONLINE 🪐'))
-app.listen(PORT, () => console.log(`🌐 HTTP sur port ${PORT}`))
+let lastPairingCode = null
+let lastPairingTime = null
+
+app.get('/', (req, res) => res.send(`👑 ${BOT_NAME} x APOTHEON IS ONLINE 🪐 - Owner: ${OWNER_NAME} - Port: ${PORT}`))
+app.get('/health', (req, res) => res.json({status: 'online', bot: BOT_NAME, owner: OWNER_NAME, port: PORT}))
+app.get('/pair', (req, res) => {
+  if (lastPairingCode) {
+    res.send(`<h1>👑 ${BOT_NAME} CODE: ${lastPairingCode}</h1><p>${lastPairingTime}</p>`)
+  } else {
+    res.send('Aucun code pairing')
+  }
+})
+const server = app.listen(PORT, () => console.log(`🌐 HTTP sur port ${PORT} - BOT: ${BOT_NAME}`))
+server.on('error', (e) => console.log('Express error:', e.message))
 
 const DATA_DIR = './database'
 const SESSION_DIR = './session'
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
-const OWNER_NUMBER = String(config.owner?.[0] || '22891847613').replace(/[^0-9]/g, '')
-let prefix = config.prefix || '.'
 let sudo = []
 let selfMode = true
 let antilink = {}
@@ -83,12 +101,20 @@ async function start() {
   })
 
   if (!state.creds.registered) {
-    console.log('👑 LEROI-MD - Pairing pour ' + OWNER_NUMBER)
+    if (!PAIRING_ENABLED) {
+      console.log('⚠️ PAIRING désactivé - mets PAIRING=true dans les ENV')
+      return
+    }
+    console.log(`👑 ${BOT_NAME} - Pairing pour ` + PAIRING_NUMBER + ` (Owner: ${OWNER_NAME})`)
     setTimeout(async () => {
       try {
-        const code = await conn.requestPairingCode(OWNER_NUMBER)
-        console.log('╔════════════════════╗\n CODE: ' + code + '\n╚════════════════════╝')
-      } catch (e) { console.log(e.message) }
+        const code = await conn.requestPairingCode(PAIRING_NUMBER)
+        console.log('╔════════════════════════════╗')
+        console.log('║ BOT: ' + BOT_NAME)
+        console.log('║ OWNER: ' + OWNER_NAME)
+        console.log('║ CODE: ' + code)
+        console.log('╚════════════════════════════╝')
+      } catch (e) { console.log('Pairing error:', e.message) }
     }, 3000)
   }
 
@@ -96,8 +122,8 @@ async function start() {
   conn.ev.on('connection.update', async u => {
     const { connection, lastDisconnect } = u
     if (connection === 'open') {
-      console.log('🪐 LEROI-MD x APOTHEON ONLINE')
-      try { await conn.sendMessage(OWNER_NUMBER + '@s.whatsapp.net', { text: '👑 𝐋Ξ𝐑Ø𝐈-MD ONLINE\n🪐 APOTHEON SOVEREIGN' }) } catch { }
+      console.log(`🪐 ${BOT_NAME} x APOTHEON ONLINE - Owner: ${OWNER_NAME}`)
+      try { await conn.sendMessage(OWNER_NUMBER + '@s.whatsapp.net', { text: `👑 ${BOT_NAME} ONLINE\n🪐 APOTHEON SOVEREIGN\nOwner: ${OWNER_NAME}` }) } catch { }
     }
     if (connection === 'close') {
       const sc = lastDisconnect?.error?.output?.statusCode
