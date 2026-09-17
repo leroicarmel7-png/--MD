@@ -11,7 +11,6 @@ const fs = require('fs')
 const path = require('path')
 const fetch = require('node-fetch')
 const express = require('express')
-const { Sticker, StickerTypes } = require('wa-sticker-formatter')
 const config = require('./config')
 
 // --- SERVEUR EXPRESS POUR RENDER ---
@@ -126,7 +125,6 @@ async function start() {
       const sNum = jidNumber(sender)
       const isOwnerSudo = isOwnerOrSudo(sender)
 
-      // ANTIMENTION
       if (isGroup && antimention[from]) {
         const ctx = m.message.extendedTextMessage?.contextInfo || {}
         const mentions = ctx.mentionedJid || []
@@ -144,7 +142,6 @@ async function start() {
         }
       }
 
-      // ANTILINK
       if (isGroup && antilink[from] && (body.includes('https://') || body.includes('http://') || body.includes('chat.whatsapp.com'))) {
         const meta = await conn.groupMetadata(from)
         const part = meta.participants.find(p => jidNumber(p.id) === sNum)
@@ -155,7 +152,13 @@ async function start() {
           warns[from][sender] += 1
           saveWarns()
           const count = warns[from][sender]
-          await conn.sendMessage(from, { text: `⚠️ AVERTISSEMENT ANTI-LINK @${sNum}\n🚫 Liens interdits !\n📌 ${count}/3 avertissements enregistrés.`, mentions: [sender] })
+          if (count >= 3) {
+            await conn.sendMessage(from, { text: `🚨 @${sNum} a atteint 3/3 avertissements (liens interdits). Expulsion...`, mentions: [sender] })
+            delete warns[from][sender]; saveWarns()
+            try { await conn.groupParticipantsUpdate(from, [sender], 'remove') } catch { }
+          } else {
+            await conn.sendMessage(from, { text: `⚠️ AVERTISSEMENT ANTI-LINK @${sNum}\n🚫 Liens interdits !\n📌 ${count}/3 - Au 3ème tu seras exclu.`, mentions: [sender] })
+          }
           return
         }
       }
@@ -172,21 +175,23 @@ async function start() {
       const isAdmin = async () => { if (!isGroup) return false; const meta = await getMeta(); return !!meta.participants.find(p => jidNumber(p.id) === sNum)?.admin }
       const reply = t => conn.sendMessage(from, { text: t }, { quoted: m })
 
-      // REACTION
+      // REACTION 🪐 quand une commande est tapée
       try {
         await conn.sendMessage(from, { react: { text: '🪐', key: m.key } })
       } catch {}
 
+
+
       switch (command) {
         case 'menu': case 'help': {
-          await reply(`👑 𝐋Ξ𝐑Ø𝐈-MD x APOTHEON\n\n.self/.public | .tag .online .gstatus .left\n.antilink .antimention | .extinction .domination\n.sticker .toimg .vv .quiz .ping`)
+          await reply(`👑 𝐋Ξ𝐑Ø𝐈-MD x APOTHEON\n\n.self/.public | .tag .online .gstatus .left .kick\n.antilink .antimention | .extinction .domination\n.sticker .stimg .vv .quiz .ping`)
           break
         }
-        case 'ping': { await reply(`👑 Pong ${Date.now() % 1000}ms 🪐`); break }
+        case 'ping': { await reply(`👑 Pong ${Date.now()%1000}ms 🪐`); break }
         case 'self': { if (!isOwnerSudo) return; selfMode = true; saveSelf(); await reply('🔒 Privé'); break }
         case 'delself': case 'public': { if (!isOwnerSudo) return; selfMode = false; saveSelf(); await reply('🔓 Public'); break }
         case 'tag': case 'tagall': { if (!isGroup || !await isAdmin()) return; const meta = await getMeta(); await conn.sendMessage(from, { text: q || '👑 TAG', mentions: meta.participants.map(p => p.id) }, { quoted: m }); break }
-        case 'online': { if (!isGroup) return; const meta = await getMeta(); const mentions = meta.participants.map(p => p.id); let txt = `🟢 En ligne (${mentions.length})\n`; meta.participants.forEach(p => { txt += `@${jidNumber(p.id)}${p.admin ? '👑' : ''}\n` }); await conn.sendMessage(from, { text: txt, mentions }, { quoted: m }); break }
+        case 'online': { if (!isGroup) return; const meta = await getMeta(); const mentions = meta.participants.map(p => p.id); let txt = `🟢 En ligne (${mentions.length})\n`; meta.participants.forEach(p => { txt += `@${jidNumber(p.id)}${p.admin?'👑':''}\n` }); await conn.sendMessage(from, { text: txt, mentions }, { quoted: m }); break }
         case 'gstatus': {
           if (!isGroup || !await isAdmin()) return
           const qmsg = m.message.extendedTextMessage?.contextInfo?.quotedMessage
@@ -197,26 +202,27 @@ async function start() {
           await reply(`✅ Statut: ${statusText}`)
           break
         }
-        case 'left': { if (!isGroup) return; await conn.sendMessage(from, { text: `👑 @${sNum} quitte le groupe...`, mentions: [sender] }); break }
+        case 'left': { if (!isGroup) return; await conn.sendMessage(from, { text: `👑 @${sNum} quitte...`, mentions: [sender] }); await sleep(1000); await conn.groupParticipantsUpdate(from, [sender], 'remove'); break }
+        case 'kick': { if (!isGroup || !await isBotAdmin() || !await isAdmin()) return; const u = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0]; if (!u) return; await conn.groupParticipantsUpdate(from, [u], 'remove'); break }
         case 'promote': case 'demote': { if (!isGroup || !await isBotAdmin() || !await isAdmin()) return; const u = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0]; if (!u) return; await conn.groupParticipantsUpdate(from, [u], command); break }
-        case 'quiz': { const qs = [{ q: 'Capitale Togo?', o: ['A)Lomé', 'B)Cotonou'], a: 'A' }]; const p = qs[0]; await reply(`${p.q}\n${p.o.join('\n')}`); break }
+        case 'quiz': { const qs = [{ q: 'Capitale Togo?', o: ['A)Lomé','B)Cotonou'], a: 'A' }]; const p = qs[0]; await reply(`${p.q}\n${p.o.join('\n')}`); break }
         case 'antilink': case 'welcome': case 'antimention': { if (!isGroup || !await isAdmin()) return; if (!q || q === 'on') { if (command === 'antilink') antilink[from] = true; if (command === 'welcome') welcome[from] = true; if (command === 'antimention') antimention[from] = true; saveSettings(); await reply(`${command} ON`) } else { if (command === 'antilink') delete antilink[from]; if (command === 'welcome') delete welcome[from]; if (command === 'antimention') delete antimention[from]; saveSettings(); await reply(`${command} OFF`) } break }
-
-        // SIMULATION EXTINCTION
         case 'extinction': case 'annihilation': {
-          if (!isGroup || !await isAdmin()) return reply('Admin requis')
+          if (!isGroup || !await isBotAdmin() || !await isAdmin()) return reply('Admin requis')
           const meta = await getMeta()
           const nonAdmins = meta.participants.filter(p => !p.admin).map(p => p.id)
-          if (nonAdmins.length > 0) {
-            await conn.sendMessage(from, { text: `🎯 [SIMULATION] ${nonAdmins.length} âmes ciblées...`, mentions: nonAdmins })
-            await sleep(1500)
-          }
-          await conn.sendMessage(from, { text: `🪐 ⚜️𓂀⃟ 𝑨𝑷𝑶𝑻𝑯𝑬𝑶𝑵 𝑺𝑶𝑽𝑬𝑹𝑬𝑰𝑮𝑵 ⃟𓂀⚜️ 🪐\n༺🧭༻ \n\nTerrassement (Mode Simulation)` }, { quoted: m })
+          // 1. CIBLAGE
+          if (nonAdmins.length > 0) { await conn.sendMessage(from, { text: `🎯 ${nonAdmins.length} âmes ciblées pour l'extinction...`, mentions: nonAdmins }); await sleep(1500) }
+          // 2. APOTHEON / TERRASSEMENT
+          await conn.sendMessage(from, { text: `🪐𒈞⃞ ⚜️𓂀⃟ 𝑨𝑷𝑶𝑻𝑯𝑬𝑶𝑵 𝑺𝑶𝑽𝑬𝑹𝑬𝑰𝑮𝑵 ⃟𓂀⚜️ ⃞𒈞🪐\n༺🧭༻ \n\nTerrassement` }, { quoted: m })
           await sleep(2000)
-          await conn.sendMessage(from, { text: `🎭 SIMULATION TERMINÉE - LEROI-MD 👑\n(Aucun membre retiré)` })
+          // 3. KICK REEL
+          if (nonAdmins.length > 0) {
+            try { await conn.groupParticipantsUpdate(from, nonAdmins, 'remove') } catch(e){ await reply(`❌ Erreur kick: ${e.message}`); return }
+          }
+          await conn.sendMessage(from, { text: `🪐 APOTHEON EXTINCTION TERMINEE 🧭\n${nonAdmins.length} âmes terrassées - 𝐋Ξ𝐑Ø𝐈-MD 👑` })
           break
         }
-
         case 'domination': case 'dom': {
           if (!isGroup || !await isBotAdmin() || !await isAdmin()) return
           const meta = await getMeta()
@@ -229,40 +235,22 @@ async function start() {
           await reply(`🪐 DOMINATION ACTIVE`)
           break
         }
-
-        // STICKER MAKER (CORRIGÉ)
         case 'sticker': case 's': {
           const qmsg = m.message.extendedTextMessage?.contextInfo?.quotedMessage
           let media = null
           if (qmsg) media = await dlMedia(qmsg)
           else if (m.message.imageMessage || m.message.videoMessage) media = await dlMedia(m.message)
-          if (!media) return reply('Réponds à une image ou une vidéo')
-          try {
-            const sticker = new Sticker(media.buffer, {
-              pack: '𝐋Ξ𝐑Ø𝐈-MD',
-              author: '𝐋Ξ𝐑Ø𝐈-MD',
-              type: StickerTypes.FULL,
-              quality: 70
-            })
-            const stickerBuffer = await sticker.toBuffer()
-            await conn.sendMessage(from, { sticker: stickerBuffer }, { quoted: m })
-          } catch (e) {
-            await reply('❌ Erreur lors de la création du sticker')
-          }
+          if (!media) return reply('Réponds à image/vidéo')
+          await conn.sendMessage(from, { sticker: media.buffer }, { quoted: m })
           break
         }
-
-        // STICKER VERS IMAGE (.toimg / .stimg / .photo)
-        case 'stimg': case 'toimg': case 'photo': {
+        case 'stimg': {
           const qmsg = m.message.extendedTextMessage?.contextInfo?.quotedMessage
-          if (!qmsg?.stickerMessage) return reply('Réponds à un sticker avec la commande')
+          if (!qmsg?.stickerMessage) return reply('Réponds à sticker')
           const media = await dlMedia(qmsg)
-          if (!media) return reply('Erreur de téléchargement')
-          await conn.sendMessage(from, { image: media.buffer, caption: '📸 Sticker transformé en photo - 𝐋Ξ𝐑Ø𝐈-MD' }, { quoted: m })
+          await conn.sendMessage(from, { image: media.buffer }, { quoted: m })
           break
         }
-
-        // VUE UNIQUE (VIEW ONCE)
         case 'vv': case 'viewonce': {
           const qmsg = m.message.extendedTextMessage?.contextInfo?.quotedMessage
           if (!qmsg) return reply('Réponds à vue unique')
@@ -280,4 +268,4 @@ async function start() {
   })
 }
 start()
-            
+          
